@@ -9,9 +9,11 @@ import android.database.Cursor;
 import android.database.MergeCursor;
 import android.net.Uri;
 import android.os.AsyncTask;
+import android.os.Build;
 import android.provider.MediaStore;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.DisplayMetrics;
@@ -27,6 +29,12 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.bumptech.glide.Glide;
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.OnProgressListener;
+import com.google.firebase.storage.StorageReference;
+import com.google.firebase.storage.UploadTask;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -40,6 +48,9 @@ public class MainActivity extends AppCompatActivity
     LoadAlbum loadAlbumTask;
     GridView galleryGridView;
     ArrayList<HashMap<String, String>> albumList = new ArrayList<HashMap<String, String>>();
+
+    private StorageReference mStorageReference;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState)
@@ -67,6 +78,12 @@ public class MainActivity extends AppCompatActivity
 
         if(!Function.hasPermissions(this, PERMISSIONS)){
             ActivityCompat.requestPermissions(this, PERMISSIONS, REQUEST_PERMISSION_KEY);
+        }else{
+            if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED)
+            {
+                loadAlbumTask = new LoadAlbum();
+                loadAlbumTask.execute();
+            }
         }
 
         //Como esta es la primera activity, tenemos que pedir los permisos y para esos, tenemos que pedirlos y despues de que acepten con el onRequestPermission, ahi ejecutamos la accion que prosigue
@@ -95,6 +112,9 @@ public class MainActivity extends AppCompatActivity
                 }
 
         }
+
+
+
     }
 
 //    @Override
@@ -102,14 +122,30 @@ public class MainActivity extends AppCompatActivity
 //    {
 //        super.onResume();
 //
-//        String[] PERMISSIONS = {Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE};
 //
-//        if(!Function.hasPermissions(this, PERMISSIONS)){
-//            ActivityCompat.requestPermissions(this, PERMISSIONS, REQUEST_PERMISSION_KEY);
-//        }else{
+//        //Asi funciona bien
+//        if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED)
+//        {
+//            AlbumAdapter adapter = new AlbumAdapter(MainActivity.this, albumList);
+//            adapter.notifyDataSetChanged();
 //            loadAlbumTask = new LoadAlbum();
 //            loadAlbumTask.execute();
+//
 //        }
+////        else {
+////
+////            loadAlbumTask = new LoadAlbum();
+////            loadAlbumTask.execute();
+////
+////        }
+//
+//
+////        if(!Function.hasPermissions(this, PERMISSIONS)){
+////            ActivityCompat.requestPermissions(this, PERMISSIONS, REQUEST_PERMISSION_KEY);
+////        }else{
+////            loadAlbumTask = new LoadAlbum();
+////            loadAlbumTask.execute();
+////        }
 //    }
 
     //Creamos un hilo para cargar los albums
@@ -165,7 +201,7 @@ public class MainActivity extends AppCompatActivity
 
             //Hace un merge
 
-            Cursor cursor = new MergeCursor(new Cursor[]{cursorExternal,cursorInternal});
+            final Cursor cursor = new MergeCursor(new Cursor[]{cursorExternal,cursorInternal});
 
             while (cursor.moveToNext())
             {
@@ -181,11 +217,13 @@ public class MainActivity extends AppCompatActivity
                 //Con la ayuda del helper le pasamos cuantos fotos existne el el abum
                 countPhoto = Function.getCount(getApplicationContext(), album);
 
-
                 //Finalmente agregamos al Arraylist el HashMap que habiamos creado en el helper "Function"
                 //en donde le pasamos los parametros necesarios para que asi los guarde y les demos uso
                 albumList.add(Function.mappingInbox(album, path, timestamp, Function.converToTime(timestamp), countPhoto));
+
             }
+
+
 
             //Cerramos el cursor
             cursor.close();

